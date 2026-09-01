@@ -51,3 +51,5 @@ journalctl -u pcms-update.service
 ```
 
 The Docker Nginx gateway listens on public port `8080` with the existing Let's Encrypt certificate. PCMS is available at `https://shenyanjian.top:8080`. The existing host Nginx HTTPS virtual host on port `443` is not modified.
+
+Certbot runs `deploy/reload-tls.sh` after certificate renewal so the Docker gateway loads the renewed certificate without downtime.
