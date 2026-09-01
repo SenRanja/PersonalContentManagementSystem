@@ -242,7 +242,12 @@ function ShellTerminal() {
     terminal.write("Connecting to system shell...\r\n");
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(`${protocol}//${location.host}/ws/shell`);
-    socket.onopen = () => terminal.write("\x1b[32mConnected\x1b[0m\r\n");
+    const focusTerminal = () => terminal.focus();
+    terminalHost.current.addEventListener("click", focusTerminal);
+    socket.onopen = () => {
+      terminal.write("\x1b[32mConnected\x1b[0m\r\n");
+      terminal.focus();
+    };
     socket.onmessage = (event) => terminal.write(event.data);
     socket.onclose = () => terminal.write("\r\n\x1b[31mConnection closed\x1b[0m");
     const input = terminal.onData((data) => socket.readyState === WebSocket.OPEN && socket.send(data));
@@ -252,7 +257,7 @@ function ShellTerminal() {
       if (width && height) terminal.resize(Math.max(20, Math.floor(width / 8.5)), Math.max(5, Math.floor(height / 18)));
     });
     observer.observe(terminalHost.current);
-    return () => { observer.disconnect(); input.dispose(); socket.close(); terminal.dispose(); };
+    return () => { observer.disconnect(); terminalHost.current?.removeEventListener("click", focusTerminal); input.dispose(); socket.close(); terminal.dispose(); };
   }, []);
   return <div className="terminal-host" ref={terminalHost} />;
 }

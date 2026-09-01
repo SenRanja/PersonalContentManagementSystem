@@ -41,12 +41,12 @@ npm run build
 npm start
 ```
 
-Manual startup and Docker Compose share the root `.env` configuration. `PORT` defaults to `8080`, and `DATA_DIR` defaults to `./data` for manual startup. The Docker container keeps its data path at `/app/data` so the existing persistent bind mount remains unchanged. The local `.env` file is ignored by Git, while `.env.example` is tracked as the template.
+Manual startup and Docker Compose share the root `.env` configuration. Docker reads `PORT` when its containers are created; changing `.env` afterward does not alter running containers. This permits creating Docker on `8080`, then changing `PORT` to `8081` for a separate manual process. Set `PORT=8080` again before recreating Docker services. `DATA_DIR` defaults to `./data` for manual startup, while Docker keeps its data path at `/app/data`. The local `.env` file is ignored by Git, while `.env.example` is tracked as the template.
 
 ## Current Session Changes
 
 - Added shared `.env` loading for manual Node.js startup and Docker Compose.
-- Made the Docker application port, health check, Nginx listener, proxy target, and host port mapping follow `PORT`.
+- Made the Docker application port, health check, Nginx listener, proxy target, and host port mapping read `PORT` when containers are created.
 - Added `.env.example`; the active `.env` remains local and ignored by Git.
 - Documented how to pause automatic CD, trigger one CI-gated deployment manually, and resume automatic CD.
 - Documented that the current unauthenticated deployment script cannot access a private GitHub repository.

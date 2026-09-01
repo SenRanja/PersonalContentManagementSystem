@@ -42,7 +42,23 @@ npm run build
 npm start
 ```
 
-Both manual startup and Docker Compose read the root `.env` file. Change `PORT` there to configure the listening port; the default is `8080`. `DATA_DIR` controls data storage for manual startup, while Docker keeps using its `/app/data` volume mount. Open `/admin` to create the first administrator.
+Both manual startup and Docker Compose read the root `.env` file. `DATA_DIR` controls data storage for manual startup, while Docker keeps using its `/app/data` volume mount. Open `/admin` to create the first administrator.
+
+To run Docker on `8080` and then start a separate manual process on `8081`, create the Docker containers first with `PORT=8080`:
+
+```bash
+sed -i 's/^PORT=.*/PORT=8080/' .env
+docker compose up -d --build
+```
+
+After the containers are running, change `.env` and start the manual process:
+
+```bash
+sed -i 's/^PORT=.*/PORT=8081/' .env
+npm start
+```
+
+Changing `.env` does not reconfigure containers that are already running. A later `docker compose up` or container recreation will read the new value, so set `PORT=8080` again before recreating Docker services.
 
 ## Deployment
 
