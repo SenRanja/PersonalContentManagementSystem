@@ -35,12 +35,21 @@ The Web Shell currently runs inside the PCMS application container. It does not 
 ## Local Development
 
 ```bash
-npm install
+cp .env.example .env
+npm ci
 npm run build
 npm start
 ```
 
-The application listens on `0.0.0.0:8080` by default. Runtime data is stored in the local `data/` directory.
+Manual startup and Docker Compose share the root `.env` configuration. `PORT` defaults to `8080`, and `DATA_DIR` defaults to `./data` for manual startup. The Docker container keeps its data path at `/app/data` so the existing persistent bind mount remains unchanged. The local `.env` file is ignored by Git, while `.env.example` is tracked as the template.
+
+## Current Session Changes
+
+- Added shared `.env` loading for manual Node.js startup and Docker Compose.
+- Made the Docker application port, health check, Nginx listener, proxy target, and host port mapping follow `PORT`.
+- Added `.env.example`; the active `.env` remains local and ignored by Git.
+- Documented how to pause automatic CD, trigger one CI-gated deployment manually, and resume automatic CD.
+- Documented that the current unauthenticated deployment script cannot access a private GitHub repository.
 
 ## GitHub
 
@@ -52,13 +61,13 @@ https://github.com/SenRanja/PersonalContentManagementSystem
 
 Branch: `master`
 
-Last verified session commit:
+Previously verified baseline commit:
 
 ```text
 37eabab Improve documentation and deployment cleanup
 ```
 
-The local branch was verified clean and synchronized with `origin/master` at the end of the session.
+The current workspace contains uncommitted configuration and documentation changes from this session. Commit and push them before expecting RackNerd to receive them.
 
 ## Production Deployment
 
@@ -83,8 +92,8 @@ https://shenyanjian.top:8080/admin
 
 Docker services:
 
-- `pcms`: Node.js application, internal port 8080
-- `pcms-gateway`: Nginx TLS gateway, public port 8080
+- `pcms`: Node.js application, internal port configured by `.env` (`8080` by default)
+- `pcms-gateway`: Nginx TLS gateway, public port configured by `.env` (`8080` by default)
 
 The existing host Nginx service on port 443 proxies to port 3000 and was intentionally left unchanged. Its homepage content hash was repeatedly verified as unchanged:
 
@@ -147,6 +156,30 @@ RackNerd runs `pcms-update.timer` every minute. The deployment script:
 7. Removes unused Docker build cache older than 24 hours.
 
 Therefore, pushing a commit to `master` automatically deploys it after CI succeeds, normally within about one minute after CI completion.
+
+Automatic CD can be paused while preserving manual deployment control:
+
+```bash
+sudo systemctl disable --now pcms-update.timer
+sudo systemctl stop pcms-update.service
+sudo systemctl mask pcms-update.timer
+```
+
+While paused, run one CI-gated deployment manually with:
+
+```bash
+sudo systemctl start pcms-update.service
+sudo journalctl -u pcms-update.service -n 100 --no-pager
+```
+
+Resume automatic CD with:
+
+```bash
+sudo systemctl unmask pcms-update.timer
+sudo systemctl enable --now pcms-update.timer
+```
+
+The deployment script currently assumes the GitHub repository is public because both `git fetch` and the Check Runs API request are unauthenticated. A private repository requires a deploy key or token before automatic or service-triggered deployment can work.
 
 Useful commands:
 

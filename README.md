@@ -36,12 +36,13 @@ flowchart LR
 ## Run Locally
 
 ```bash
-npm install
+cp .env.example .env
+npm ci
 npm run build
 npm start
 ```
 
-The service listens on port `8080`. Open `/admin` to create the first administrator.
+Both manual startup and Docker Compose read the root `.env` file. Change `PORT` there to configure the listening port; the default is `8080`. `DATA_DIR` controls data storage for manual startup, while Docker keeps using its `/app/data` volume mount. Open `/admin` to create the first administrator.
 
 ## Deployment
 
@@ -50,10 +51,43 @@ Production runs with Docker Compose in `/root/PersonalContentManagementSystem` o
 Persistent data is stored in `./data`. HTTPS uses Let's Encrypt with automatic renewal and a post-renewal gateway reload. The existing host service on port `443` is unchanged.
 
 ```bash
+cp .env.example .env
 docker compose ps
 systemctl status pcms-update.timer
 journalctl -u pcms-update.service
 ```
+
+### Manual CD Control
+
+The RackNerd server polls GitHub through `pcms-update.timer`. Pausing the timer stops push-triggered deployment without disabling GitHub Actions CI.
+
+Pause automatic CD:
+
+```bash
+sudo systemctl disable --now pcms-update.timer
+sudo systemctl stop pcms-update.service
+sudo systemctl mask pcms-update.timer
+systemctl status pcms-update.timer
+```
+
+Deploy the latest CI-approved `master` commit once while automatic CD remains paused:
+
+```bash
+sudo systemctl start pcms-update.service
+sudo journalctl -u pcms-update.service -n 100 --no-pager
+cd /root/PersonalContentManagementSystem
+docker compose ps
+```
+
+Resume automatic CD:
+
+```bash
+sudo systemctl unmask pcms-update.timer
+sudo systemctl enable --now pcms-update.timer
+systemctl status pcms-update.timer
+```
+
+The current deployment script uses unauthenticated GitHub HTTPS and API access. If the repository becomes private, configure a deploy key or token before resuming automatic CD.
 
 ## Notification API
 
