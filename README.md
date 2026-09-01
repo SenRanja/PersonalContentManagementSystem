@@ -2,15 +2,16 @@
 
 A small self-hosted dashboard for notifications, file sharing, server monitoring, shell access, and user management.
 
-**Live:** [https://shenyanjian.top:8080](https://shenyanjian.top:8080)
 
 ## Screenshots
 
-| Notifications | Files | System |
+| Notifications | Files |
 | --- | --- | --- |
-| ![Notifications](imgs/notifications.png) | ![Files](imgs/files.png) | ![System](imgs/system.png) |
+| ![Notifications](imgs/notifications.png) | ![Files](imgs/files.png) |
 
 Add the screenshots as `imgs/notifications.png`, `imgs/files.png`, and `imgs/system.png`.
+
+
 
 ## Features
 
