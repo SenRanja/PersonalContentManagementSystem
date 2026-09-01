@@ -50,6 +50,7 @@ Manual startup and Docker Compose share the root `.env` configuration. `PORT` de
 - Added `.env.example`; the active `.env` remains local and ignored by Git.
 - Documented how to pause automatic CD, trigger one CI-gated deployment manually, and resume automatic CD.
 - Documented that the current unauthenticated deployment script cannot access a private GitHub repository.
+- Fixed HTTP manual deployments failing subsequent API and Shell WebSocket authentication when the same domain already had an HTTPS Secure session cookie. HTTP now uses `pcms_session_http`, while HTTPS keeps `pcms_session`.
 
 ## GitHub
 

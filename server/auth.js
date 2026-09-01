@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import db from "./db.js";
 
 const SESSION_COOKIE = "pcms_session";
+const HTTP_SESSION_COOKIE = "pcms_session_http";
 const SESSION_DAYS = 30;
 
 function hashToken(token) {
@@ -32,13 +33,14 @@ export function createSession(req, res, userId) {
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
   db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
     .run(hashToken(token), userId, expiresAt);
-  res.cookie(SESSION_COOKIE, token, cookieOptions(req));
+  res.cookie(req.secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE, token, cookieOptions(req));
 }
 
 export function destroySession(req, res) {
-  const token = req.cookies?.[SESSION_COOKIE];
+  const token = req.cookies?.[SESSION_COOKIE] || req.cookies?.[HTTP_SESSION_COOKIE];
   if (token) db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
   res.clearCookie(SESSION_COOKIE, { path: "/" });
+  res.clearCookie(HTTP_SESSION_COOKIE, { path: "/" });
 }
 
 export function getUserFromToken(token) {
@@ -51,12 +53,13 @@ export function getUserFromToken(token) {
 }
 
 export function getUserFromCookieHeader(cookieHeader = "") {
-  const token = cookieHeader.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${SESSION_COOKIE}=`));
-  return getUserFromToken(token ? decodeURIComponent(token.slice(SESSION_COOKIE.length + 1)) : null);
+  const cookies = Object.fromEntries(cookieHeader.split(";").map((part) => part.trim().split(/=(.*)/s, 2)));
+  return getUserFromToken(cookies[SESSION_COOKIE]) || getUserFromToken(cookies[HTTP_SESSION_COOKIE]);
 }
 
 export function attachUser(req, _res, next) {
-  req.user = getUserFromToken(req.cookies?.[SESSION_COOKIE]);
+  req.sessionToken = req.cookies?.[req.secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE];
+  req.user = getUserFromToken(req.sessionToken);
   next();
 }
 

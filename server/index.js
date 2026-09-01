@@ -134,7 +134,7 @@ app.post("/api/me/password", requireUser, async (req, res, next) => {
     }
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(await hashPassword(newPassword), req.user.id);
     db.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?")
-      .run(req.user.id, crypto.createHash("sha256").update(req.cookies.pcms_session).digest("hex"));
+      .run(req.user.id, crypto.createHash("sha256").update(req.sessionToken).digest("hex"));
     res.json({ ok: true });
   } catch (error) {
     next(error);
