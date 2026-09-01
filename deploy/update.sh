@@ -30,4 +30,5 @@ fi
 
 git reset --hard "$REMOTE_REVISION"
 docker compose up -d --build --remove-orphans
-docker image prune -f
+docker image prune -af --filter "until=24h"
+docker builder prune -af --filter "until=24h"

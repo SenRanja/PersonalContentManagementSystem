@@ -1,48 +1,52 @@
 # Personal Content Management System
 
-个人部署的内容工作台，包含实时消息通知、文件管理、系统监控、Web Shell 和用户管理。
+A small self-hosted dashboard for notifications, file sharing, server monitoring, shell access, and user management.
 
-## 运行
+**Live:** [https://shenyanjian.top:8080](https://shenyanjian.top:8080)
 
-需要 Node.js 20 或更高版本：
+## Screenshots
+
+| Notifications | Files | System |
+| --- | --- | --- |
+| ![Notifications](imgs/notifications.png) | ![Files](imgs/files.png) | ![System](imgs/system.png) |
+
+Add the screenshots as `imgs/notifications.png`, `imgs/files.png`, and `imgs/system.png`.
+
+## Features
+
+- Real-time notifications through HTTP and WebSocket
+- File and folder upload/download
+- CPU, memory, and disk monitoring
+- Administrator shell and user management
+- SQLite storage with salted password hashes
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Client -->|HTTPS :8080| Nginx[Docker Nginx]
+    Nginx --> App[Node.js + React]
+    App --> SQLite[(SQLite)]
+    App --> Files[File Storage]
+    GitHub[GitHub Actions CI] --> CD[RackNerd CD Timer]
+    CD --> Docker[Docker Compose]
+```
+
+## Run Locally
 
 ```bash
 npm install
 npm run build
-npm run start
+npm start
 ```
 
-服务默认监听 `0.0.0.0:8080`。第一次打开 `/admin`，页面会要求创建首个管理员账号。后续用户从任意页面登录。
-
-可通过环境变量调整端口和持久化目录：
-
-```bash
-PORT=8080 DATA_DIR=/var/lib/pcms npm run start
-```
-
-SQLite 数据库和上传文件默认保存在 `data/`。部署升级前应备份该目录。
-
-## 消息接口
-
-任何程序都可以向 `/api/notification` 发送 JSON 或纯文本消息：
-
-```bash
-curl -X POST https://shenyanjian.top/api/notification \
-  -H 'Content-Type: application/json' \
-  -d '{"message":"任务执行完成"}'
-```
-
-消息总容量限制为 1 MB，超出后自动删除最旧消息。单条消息不能超过 1 MB。
-
-## 反向代理
-
-生产环境建议由 Nginx/Caddy 提供 HTTPS，并将 HTTP 与 WebSocket 一并代理到 `127.0.0.1:8080`。Web Shell 拥有服务运行账号的系统权限，请只向可信管理员授权，并务必启用 HTTPS。
+The service listens on port `8080`. Open `/admin` to create the first administrator.
 
 ## Deployment
 
-The production container is defined by `Dockerfile` and `compose.yaml`. Persistent data is mounted from `./data`.
+Production runs with Docker Compose in `/root/PersonalContentManagementSystem` on RackNerd. Every push to `master` starts GitHub Actions. After CI passes, the server detects the commit within one minute, rebuilds the containers, and removes unused images and build cache.
 
-GitHub Actions validates every push to `master`, including a complete Docker image build. The RackNerd server checks GitHub every minute and deploys only commits whose CI checks have passed. Production files and data are stored in `/root/PersonalContentManagementSystem/`.
+Persistent data is stored in `./data`. HTTPS uses Let's Encrypt with automatic renewal and a post-renewal gateway reload. The existing host service on port `443` is unchanged.
 
 ```bash
 docker compose ps
@@ -50,6 +54,10 @@ systemctl status pcms-update.timer
 journalctl -u pcms-update.service
 ```
 
-The Docker Nginx gateway listens on public port `8080` with the existing Let's Encrypt certificate. PCMS is available at `https://shenyanjian.top:8080`. The existing host Nginx HTTPS virtual host on port `443` is not modified.
+## Notification API
 
-Certbot runs `deploy/reload-tls.sh` after certificate renewal so the Docker gateway loads the renewed certificate without downtime.
+```bash
+curl -X POST https://shenyanjian.top:8080/api/notification \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Deployment completed"}'
+```
