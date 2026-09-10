@@ -13,15 +13,20 @@ import {
   Folder,
   FolderPlus,
   HardDrive,
+  Lock,
   LogOut,
   MessageSquareText,
   Maximize2,
   Minimize2,
   KeyRound,
+  Pencil,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
+  Share2,
   TerminalSquare,
+  Trash2,
+  Unlock,
   Upload,
   UserPlus,
   Users,
@@ -135,13 +140,17 @@ function NotificationsPanel() {
   );
 }
 
-function FilePanel({ isAdmin }) {
+function FilePanel({ user }) {
   const [currentPath, setCurrentPath] = useState("");
   const [entries, setEntries] = useState([]);
   const [selected, setSelected] = useState([]);
   const [folderName, setFolderName] = useState("");
   const [showFolder, setShowFolder] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [shareTarget, setShareTarget] = useState(null);
+  const [shareUsers, setShareUsers] = useState([]);
+  const [shareUserIds, setShareUserIds] = useState([]);
   const inputRef = useRef(null);
 
   async function loadFiles(pathValue = currentPath) {
@@ -159,10 +168,13 @@ function FilePanel({ isAdmin }) {
 
   async function createFolder(event) {
     event.preventDefault();
-    await api("/api/files/folder", { method: "POST", body: JSON.stringify({ path: currentPath, name: folderName }) });
-    setFolderName("");
-    setShowFolder(false);
-    await loadFiles();
+    setError("");
+    try {
+      await api("/api/files/folder", { method: "POST", body: JSON.stringify({ path: currentPath, name: folderName }) });
+      setFolderName("");
+      setShowFolder(false);
+      await loadFiles();
+    } catch (actionError) { setError(actionError.message); }
   }
 
   async function uploadFiles(event) {
@@ -172,8 +184,11 @@ function FilePanel({ isAdmin }) {
     body.append("path", currentPath);
     for (const file of event.target.files) body.append("files", file);
     try {
+      setError("");
       await api("/api/files/upload", { method: "POST", body });
       await loadFiles();
+    } catch (actionError) {
+      setError(actionError.message);
     } finally {
       setBusy(false);
       event.target.value = "";
@@ -195,15 +210,65 @@ function FilePanel({ isAdmin }) {
     URL.revokeObjectURL(url);
   }
 
+  async function renameEntry(entry) {
+    const name = window.prompt("New name", entry.name);
+    if (!name || name === entry.name) return;
+    try {
+      setError("");
+      await api("/api/files", { method: "PATCH", body: JSON.stringify({ path: entryPath(entry.name), name }) });
+      await loadFiles();
+    } catch (actionError) { setError(actionError.message); }
+  }
+
+  async function deleteEntry(entry) {
+    if (!window.confirm(`Delete ${entry.name}${entry.isDirectory ? " and everything inside it" : ""}?`)) return;
+    try {
+      setError("");
+      await api("/api/files", { method: "DELETE", body: JSON.stringify({ path: entryPath(entry.name) }) });
+      await loadFiles();
+    } catch (actionError) { setError(actionError.message); }
+  }
+
+  async function toggleProtection(entry) {
+    try {
+      setError("");
+      await api("/api/files/protection", { method: "PUT", body: JSON.stringify({ path: entryPath(entry.name), protected: !entry.protected }) });
+      await loadFiles();
+    } catch (actionError) { setError(actionError.message); }
+  }
+
+  async function openSharing(entry) {
+    try {
+      setError("");
+      const target = entryPath(entry.name);
+      const [usersResult, grantsResult] = await Promise.all([
+        api("/api/users"),
+        api(`/api/files/grants?path=${encodeURIComponent(target)}`),
+      ]);
+      setShareUsers(usersResult.users.filter((item) => item.id !== user.id));
+      setShareUserIds(grantsResult.userIds);
+      setShareTarget(target);
+    } catch (actionError) { setError(actionError.message); }
+  }
+
+  async function saveSharing(event) {
+    event.preventDefault();
+    try {
+      await api("/api/files/grants", { method: "PUT", body: JSON.stringify({ path: shareTarget, userIds: shareUserIds }) });
+      setShareTarget(null);
+      await loadFiles();
+    } catch (actionError) { setError(actionError.message); }
+  }
+
   const parentPath = currentPath.split("/").slice(0, -1).join("/");
-  return (
+  return <>
     <section className="workspace-panel">
       <header className="panel-header">
         <div><p className="section-kicker">FILE STORAGE</p><h2>Files</h2></div>
         <div className="header-actions">
           {!!selected.length && <button className="secondary-button" onClick={downloadSelected}><Download size={17} />Download {selected.length}</button>}
-          {isAdmin && <button className="icon-button bordered" onClick={() => setShowFolder((value) => !value)} title="New folder"><FolderPlus size={19} /></button>}
-          {isAdmin && <button className="primary-button compact" disabled={busy} onClick={() => inputRef.current.click()}><Upload size={17} />{busy ? "Uploading" : "Upload"}</button>}
+          <button className="icon-button bordered" onClick={() => setShowFolder((value) => !value)} title="New folder"><FolderPlus size={19} /></button>
+          <button className="primary-button compact" disabled={busy} onClick={() => inputRef.current.click()}><Upload size={17} />{busy ? "Uploading" : "Upload"}</button>
           <input ref={inputRef} hidden multiple type="file" onChange={uploadFiles} />
         </div>
       </header>
@@ -213,8 +278,9 @@ function FilePanel({ isAdmin }) {
         <button className="icon-button path-refresh" onClick={() => loadFiles()} title="Refresh"><RefreshCw size={17} /></button>
       </div>
       {showFolder && <form className="inline-form" onSubmit={createFolder}><input required autoFocus placeholder="Folder name" value={folderName} onChange={(event) => setFolderName(event.target.value)} /><button className="primary-button compact">Create</button></form>}
+      {error && <p className="file-error">{error}</p>}
       <div className="file-table" role="table">
-        <div className="file-row file-heading" role="row"><span /><span>Name</span><span>Size</span><span>Modified</span></div>
+        <div className="file-row file-heading" role="row"><span /><span>Name</span><span>Size</span><span>Modified</span><span>Actions</span></div>
         {!entries.length && <div className="empty-state"><HardDrive size={30} /><p>This folder is empty</p></div>}
         {entries.map((entry) => (
           <div className="file-row" role="row" key={entry.name}>
@@ -222,11 +288,29 @@ function FilePanel({ isAdmin }) {
             <button className="file-name" onClick={() => entry.isDirectory ? loadFiles(entryPath(entry.name)) : window.location.assign(`/api/files/download?path=${encodeURIComponent(entryPath(entry.name))}`)}>{entry.isDirectory ? <Folder size={19} /> : <File size={19} />}<span>{entry.name}</span></button>
             <span>{entry.isDirectory ? "-" : formatBytes(entry.size)}</span>
             <time>{new Date(entry.modifiedAt).toLocaleString("en-GB", { hour12: false })}</time>
+            <div className="file-actions">
+              {entry.protected && <Lock className="protected-mark" size={16} aria-label="Protected from deletion" />}
+              {entry.canShare && <button className="icon-button" onClick={() => openSharing(entry)} title="Share folder"><Share2 size={16} /></button>}
+              {entry.canProtect && <button className="icon-button" onClick={() => toggleProtection(entry)} title={entry.protected ? "Allow granted users to delete" : "Protect from deletion"}>{entry.protected ? <Unlock size={16} /> : <Lock size={16} />}</button>}
+              {entry.canRename && <button className="icon-button" onClick={() => renameEntry(entry)} title="Rename"><Pencil size={16} /></button>}
+              {entry.canDelete && <button className="icon-button danger" onClick={() => deleteEntry(entry)} title="Delete"><Trash2 size={16} /></button>}
+            </div>
           </div>
         ))}
       </div>
     </section>
-  );
+    {shareTarget && <div className="dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShareTarget(null)}>
+      <form className="share-dialog" onSubmit={saveSharing}>
+        <div className="dialog-heading"><Share2 size={20} /><h2>Folder access</h2><button type="button" className="text-button" onClick={() => setShareTarget(null)}>Close</button></div>
+        <p className="share-path">{shareTarget}</p>
+        <div className="user-picker" aria-label="Select users who can access this folder">
+          {!shareUsers.length && <p>No other users available</p>}
+          {shareUsers.map((item) => <label key={item.id}><input type="checkbox" checked={shareUserIds.includes(item.id)} onChange={() => setShareUserIds((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id])} /><span>{item.username}</span><small>{item.isAdmin ? "Admin" : "User"}</small></label>)}
+        </div>
+        <button className="primary-button">Save access</button>
+      </form>
+    </div>}
+  </>;
 }
 
 function ResourceStatus({ label, value }) {
@@ -344,13 +428,19 @@ function UsersPanel({ currentUser }) {
       <div className="users-layout">
         <div className="user-list">
           <div className="user-row user-heading"><span>Account</span><span>Role</span><span>Admin</span></div>
-          {users.map((user) => <div className="user-row" key={user.id}><strong>{user.username}{user.id === currentUser.id && <small>Current</small>}</strong><span>{user.isAdmin ? "Administrator" : "User"}</span><label className="toggle"><input type="checkbox" checked={user.isAdmin} disabled={user.id === currentUser.id} onChange={(event) => setAdmin(user, event.target.checked)} /><span /></label></div>)}
+          {users.map((user) => <div className="user-row" key={user.id}>
+            <strong>{user.username}{user.id === currentUser.id && <small>Current</small>}</strong>
+            <span>{user.isOwner ? "Owner" : user.isAdmin ? "Administrator" : "User"}</span>
+            {currentUser.isOwner && !user.isOwner
+              ? <label className="role-toggle" title={user.isAdmin ? "Revoke administrator" : "Grant administrator"}><input type="checkbox" checked={user.isAdmin} onChange={(event) => setAdmin(user, event.target.checked)} /><span /></label>
+              : <span className={`role-status ${user.isOwner ? "owner" : user.isAdmin ? "admin" : "user"}`}>{user.isOwner ? "Owner" : user.isAdmin ? "Admin" : "User"}</span>}
+          </div>)}
         </div>
         <form className="create-user-form" onSubmit={createUser}>
           <UserPlus size={22} /><h3>Create account</h3>
           <label>Username<input required minLength={3} maxLength={32} value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} /></label>
           <label>Initial password<input required minLength={8} maxLength={128} type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label>
-          <label className="checkbox-line"><input type="checkbox" checked={form.isAdmin} onChange={(event) => setForm({ ...form, isAdmin: event.target.checked })} />Grant administrator access</label>
+          {currentUser.isOwner && <label className="checkbox-line"><input type="checkbox" checked={form.isAdmin} onChange={(event) => setForm({ ...form, isAdmin: event.target.checked })} />Grant administrator access</label>}
           {error && <p className="form-error">{error}</p>}
           <button className="primary-button">Create user</button>
         </form>
@@ -379,11 +469,11 @@ function Dashboard({ user, onLogout }) {
       <aside className="sidebar">
         <div className="sidebar-brand"><strong>PCMS</strong><button className="icon-button collapse-button" onClick={toggleSidebar} title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}>{sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}</button></div>
         <nav>{navigation.map((item) => <button className={active === item.id ? "active" : ""} title={item.label} key={item.id} onClick={() => setActive(item.id)}><item.icon size={19} /><span>{item.label}</span></button>)}<button className="mobile-profile" onClick={() => setShowPassword(true)}><KeyRound size={19} /><span>Password</span></button></nav>
-        <div className="account"><button className="profile-button" onClick={() => setShowPassword(true)}><strong>{user.username}</strong><span>{user.isAdmin ? "Administrator" : "User"}</span></button><button className="icon-button" onClick={onLogout} title="Sign out"><LogOut size={18} /></button></div>
+        <div className="account"><button className="profile-button" onClick={() => setShowPassword(true)}><strong>{user.username}</strong><span>{user.isOwner ? "Owner" : user.isAdmin ? "Administrator" : "User"}</span></button><button className="icon-button" onClick={onLogout} title="Sign out"><LogOut size={18} /></button></div>
       </aside>
       <main className="workspace">
         {active === "notifications" && <NotificationsPanel />}
-        {active === "files" && <FilePanel isAdmin={user.isAdmin} />}
+        {active === "files" && <FilePanel user={user} />}
         {active === "system" && user.isAdmin && <SystemPanel />}
         {active === "users" && user.isAdmin && <UsersPanel currentUser={user} />}
       </main>

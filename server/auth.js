@@ -46,7 +46,7 @@ export function destroySession(req, res) {
 export function getUserFromToken(token) {
   if (!token) return null;
   return db.prepare(`
-    SELECT users.id, users.username, users.is_admin AS isAdmin
+    SELECT users.id, users.username, users.is_admin AS isAdmin, users.is_owner AS isOwner
     FROM sessions JOIN users ON users.id = sessions.user_id
     WHERE sessions.token_hash = ? AND sessions.expires_at > datetime('now')
   `).get(hashToken(token)) || null;
